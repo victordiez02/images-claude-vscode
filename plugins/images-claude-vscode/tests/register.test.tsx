@@ -5,16 +5,15 @@ const MOD = 'images-claude-vscode'
 const SHOW_IMAGE = 'mcp__images-claude-vscode__ShowImage'
 const JPEG = '/9j/4AAQSkZJRg'
 
-// Simula el sistema operativo y sus herramientas (mktemp, base64 y sips en macOS; PowerShell en Windows), que en el test no existen.
+// Simula el sistema operativo y su script de reducción (reducir.sh en macOS, reducir.ps1 en Windows), que en el test no se ejecutan.
 function simularSistema(on: On, plataforma: 'macos' | 'windows' = 'macos') {
   const ordenes: { argv: readonly string[]; stdin?: string }[] = []
   on('session.info', () => ({ value: { platform: plataforma } }) as never)
   on('process.run', (_, e) => {
     ordenes.push({ argv: e.argv, stdin: e.init?.stdin })
-    const stdout = e.argv[0] === 'powershell.exe' ? `480 360 ${JPEG}` : e.argv[0] === '/usr/bin/mktemp' ? '/tmp/prueba' : 'pixelWidth: 640\npixelHeight: 480'
-    return { value: { exitCode: 0, stdout, stderr: '' } } as never
+    return { value: { exitCode: 0, stdout: `480 360 ${JPEG}`, stderr: '' } } as never
   })
-  on('fs.read', (_, e) => ({ value: e.as === 'bytes' ? { base64: JPEG } : '# reducir.ps1' }) as never)
+  on('fs.read', () => ({ value: '# reducir.ps1' }) as never)
   return ordenes
 }
 
@@ -55,12 +54,17 @@ function fila(tool: string, input: Record<string, unknown>) {
 }
 
 test('Read de una imagen pinta su fila y la imagen guardada en la conversación', async ($, on) => {
-  simularSistema(on)
+  const ordenes = simularSistema(on)
   simularConversacion(on)
   const ui = await $.ui.mount({ plugin: MOD, surface: 'vscode', component: 'ToolUse', requestId: 'leer', props: fila('Read', { file_path: '/fotos/captura.png' }) })
   const svg = await ui.find({ type: 'Svg' })
   expect(svg).toBeDefined()
   expect(JSON.stringify(svg)).toContain(JPEG)
+  const argv = ordenes[0]?.argv ?? []
+  expect(argv[0]).toBe('/bin/bash')
+  expect(argv[1]?.endsWith('/hooks/reducir.sh')).toBe(true)
+  expect(argv.slice(2)).toEqual(['', '60000', '640', '480', '400', '320'])
+  expect(ordenes[0]?.stdin).toBe('iVBORw0KGgo')
   await ui.unmount()
 })
 

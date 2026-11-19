@@ -1,0 +1,56 @@
+# Prueba el mod y el instalador en una máquina macOS y otra Windows de GitHub: validación, tests, reducción de imágenes real e instalación.
+name: Pruebas
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Validar el mod y pasar sus tests
+        run: |
+          claude plugin validate .
+          claude plugin test plugins/images-claude-vscode
+
+      - name: Reducir imágenes con reducir.sh
+        run: bash .github/pruebas/probar-reducir.sh
+
+      - name: Instalar con instalar.sh
+        run: bash .github/pruebas/probar-instalador.sh
+
+  # Con Windows PowerShell 5.1, como en cualquier Windows 10 u 11.
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Validar el mod y pasar sus tests
+        run: |
+          claude plugin validate .
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          claude plugin test plugins/images-claude-vscode
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Reducir imágenes con reducir.ps1
+        run: .\.github\pruebas\probar-reducir.ps1
+
+      - name: Instalar con instalar.ps1
+        run: .\.github\pruebas\probar-instalador.ps1
