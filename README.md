@@ -5,6 +5,12 @@ Mod de Claude Code que muestra imágenes dentro del chat de la extensión de VS 
 - Las imágenes que Claude lee aparecen debajo de su fila en el chat.
 - Claude puede enseñarte una imagen del disco cuando se lo pides, o cuando le parece útil.
 
+<p align="center">
+  <img src="example.png" alt="Fila «Read paisaje.png» en el chat de VS Code, con la imagen leída debajo" width="362">
+  <br>
+  <sub>Claude lee una imagen y aparece en el chat, debajo de su fila.</sub>
+</p>
+
 ## Requisitos
 
 - macOS.
