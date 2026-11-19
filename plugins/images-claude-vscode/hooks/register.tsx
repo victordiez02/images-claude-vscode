@@ -71,7 +71,7 @@ export const register: Register = on => {
     const escala = Math.min(1, ANCHO_VISTA / vista.ancho, ALTO_VISTA / vista.alto)
     const radio = Math.round(RADIO / escala)
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vista.ancho} ${vista.alto}" width="${vista.ancho}" height="${vista.alto}"><clipPath id="r"><rect width="${vista.ancho}" height="${vista.alto}" rx="${radio}"/></clipPath><image width="${vista.ancho}" height="${vista.alto}" clip-path="url(#r)" href="data:image/jpeg;base64,${vista.base64}"/></svg>`
-    const { Box, Svg, Button } = $.ui.resolve(e)
+    const { Box, Svg, Button, Markdown } = $.ui.resolve(e)
     const imagen = (
       <Box flexDirection="row" justifyContent="center">
         <Box key={`vista-${e.requestId}`} position="relative">
@@ -82,16 +82,32 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
-    // ShowImage se pinta sin su fila: la imagen es todo lo que la herramienta tiene que enseñar.
-    return esRead ? (
+    // Read conserva su fila; ShowImage cambia la suya por una cabecera como la de Read, con el archivo como enlace.
+    const cabecera = esRead ? (
+      await next(e)
+    ) : (
+      <Markdown key={`cabecera-${e.requestId}`} text={`**Show** [${escaparMarkdown(nombreDe(ruta))}](${await enlaceDe($, ruta)})`} onLinkPress={() => abrir($, ruta)} />
+    )
+    return (
       <Box flexDirection="column" gap="sm">
-        {await next(e)}
+        {cabecera}
         {imagen}
       </Box>
-    ) : (
-      imagen
     )
   })
+}
+
+function nombreDe(ruta: string): string {
+  return ruta.split('/').pop() || ruta
+}
+
+function escaparMarkdown(texto: string): string {
+  return texto.replace(/[\\[\]()*_`]/g, '\\$&')
+}
+
+async function enlaceDe($: EngineInterface, ruta: string): Promise<string> {
+  const absoluta = ruta.startsWith('/') ? ruta : `${await $.session.cwd()}/${ruta}`
+  return `file://${encodeURI(absoluta).replace(/[()]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`
 }
 
 // Prepara una vez por llamada la vista a partir de lo que guarda la conversación.
