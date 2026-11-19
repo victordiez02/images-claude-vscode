@@ -19,4 +19,8 @@ En una terminal:
 claude plugin install images-claude-vscode --marketplace victordiez02/images-claude-vscode
 ```
 
+Así se instala para todos tus proyectos. Para que se active solo en uno, ejecútalo desde la carpeta de ese proyecto añadiendo `--scope local`.
+
+Con el repositorio clonado, `make instalar` abre un menú que te deja elegir entre las dos opciones y te avisa si ya lo tenías instalado.
+
 Después, abre una conversación nueva en el chat de Claude Code de VS Code.
