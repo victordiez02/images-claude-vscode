@@ -1,0 +1,14 @@
+{
+  "name": "claude-vscode-images",
+  "description": "Mods de Claude Code para ver imágenes en el chat de la extensión de VS Code",
+  "owner": {
+    "name": "victordiez02"
+  },
+  "plugins": [
+    {
+      "name": "images-claude-vscode",
+      "source": "./plugins/images-claude-vscode",
+      "description": "Pinta en el chat de la extensión de VS Code las imágenes que Claude lee y las que enseña con ShowImage"
+    }
+  ]
+}

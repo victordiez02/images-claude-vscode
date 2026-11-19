@@ -1,0 +1,7 @@
+{
+  "name": "images-claude-vscode",
+  "version": "0.1.0",
+  "description": "Pinta en el chat de la extensión de VS Code las imágenes que Claude lee y las que enseña con ShowImage",
+  "author": { "name": "victordiez02" },
+  "license": "MIT"
+}
