@@ -1,28 +1,19 @@
-import type { EngineInterface, Register } from 'claude-code'
+import type { Register } from 'claude-code'
+import { vistaDe } from './conversacion'
+import { abrir, enlaceDe, escaparMarkdown, nombreDe } from './enlace'
+import { reducir, sistemaDe } from './imagen'
 
 const ES_IMAGEN = /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i
 const MOSTRAR = 'ShowImage'
-const LADOS = [640, 480, 400, 320]
 const ANCHO_VISTA = 320
 const ALTO_VISTA = 240
 const RADIO = 8
-// La conversación descarta en silencio el _meta de un resultado de 64 KB o más.
-const MAXIMO_BASE64 = 60000
 
 const DESCRIPCION = `Enseña a la persona una imagen del disco, pintada en el chat de VS Code. No te devuelve la imagen: para verla tú, usa Read.
 Úsala siempre que la persona te pida enseñarle una imagen. Si no te lo ha pedido:
 - Cuando enseñarla sea claramente útil (el resultado visual de lo que acabas de hacer, una captura sobre la que hablas), enséñala directamente.
 - Cuando solo crees que puede ayudar, ofrece enseñar las imágenes; si acepta, enséñalas a partir de entonces sin volver a preguntar.
 Formatos: png, jpg, gif, webp, heic, tiff y bmp.`
-
-// JPEG reducido en base64 y sus medidas en píxeles.
-type Vista = { base64: string; ancho: number; alto: number }
-// Lo que la conversación guarda de cada llamada: la imagen que leyó Read o la vista que guardó ShowImage.
-type Fuente = { imagen: string } | { vista: Vista }
-type Origen = { ruta: string } | { base64: string }
-
-let lectura: Promise<Map<string, Fuente>> | undefined
-const vistas = new Map<string, Promise<Vista | null>>()
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -96,183 +87,7 @@ export const register: Register = on => {
   })
 }
 
-async function sistemaDe($: EngineInterface): Promise<string> {
-  return (await $.session.info()).platform ?? 'unknown'
-}
-
-function nombreDe(ruta: string): string {
-  return ruta.split(/[\\/]/).pop() || ruta
-}
-
-function escaparMarkdown(texto: string): string {
-  return texto.replace(/[\\[\]()*_`]/g, '\\$&')
-}
-
-// Enlace file:// de la ruta, con barras normales también en Windows (file:///C:/…).
-async function enlaceDe($: EngineInterface, ruta: string): Promise<string> {
-  const absoluta = /^([a-zA-Z]:)?[\\/]/.test(ruta) ? ruta : `${await $.session.cwd()}/${ruta}`
-  const conBarras = absoluta.replace(/\\/g, '/')
-  return `file://${conBarras.startsWith('/') ? '' : '/'}${encodeURI(conBarras).replace(/[()]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`
-}
-
-// Prepara una vez por llamada la vista a partir de lo que guarda la conversación.
-function vistaDe($: EngineInterface, id: string): Promise<Vista | null> {
-  if (!vistas.has(id)) {
-    vistas.set(id, fuenteDe($, id).then(fuente => (!fuente ? null : 'vista' in fuente ? fuente.vista : reducir($, { base64: fuente.imagen }))))
-  }
-  return vistas.get(id)!
-}
-
-// Busca la llamada en la última lectura de la conversación y la vuelve a leer solo si la llamada es más nueva.
-async function fuenteDe($: EngineInterface, id: string): Promise<Fuente | undefined> {
-  const usada = (lectura ??= leerConversacion($))
-  const fuentes = await usada
-  if (fuentes.has(id)) {
-    return fuentes.get(id)
-  }
-  if (lectura === usada) {
-    lectura = leerConversacion($)
-  }
-  return (await lectura).get(id)
-}
-
-// La imagen de Read va en el tool_result que se manda al modelo; la vista de ShowImage, en el registro de la llamada.
-async function leerConversacion($: EngineInterface): Promise<Map<string, Fuente>> {
-  const [registros, api] = await Promise.all([$.session.messages(), $.session.messages({ as: 'api' })])
-  const fuentes = new Map<string, Fuente>()
-  for (const uso of registros.flatMap(m => m.toolUses)) {
-    const vista = vistaDeMeta(uso.result)
-    if (vista) {
-      fuentes.set(uso.tool_use_id, { vista })
-    }
-  }
-  for (const bloque of api.flatMap(m => m.content)) {
-    const contenido = bloque.type === 'tool_result' && Array.isArray(bloque.content) ? (bloque.content as { type?: string; source?: { type?: string; data?: unknown } }[]) : []
-    const imagen = contenido.find(c => c.type === 'image' && c.source?.type === 'base64')?.source?.data
-    if (typeof imagen === 'string' && typeof bloque.tool_use_id === 'string') {
-      fuentes.set(bloque.tool_use_id, { imagen })
-    }
-  }
-  return fuentes
-}
-
-function vistaDeMeta(resultado: unknown): Vista | null {
-  const bloques = Array.isArray(resultado) ? (resultado as { _meta?: { vista?: Partial<Vista> } }[]) : []
-  const vista = bloques.find(b => b._meta?.vista)?._meta?.vista
-  return typeof vista?.base64 === 'string' && Number(vista.ancho) > 0 && Number(vista.alto) > 0
-    ? { base64: vista.base64, ancho: Number(vista.ancho), alto: Number(vista.alto) }
-    : null
-}
-
 function campo(entrada: unknown, nombre: string): string {
   const valor = (entrada as Record<string, unknown> | undefined)?.[nombre]
   return typeof valor === 'string' ? valor : ''
-}
-
-// Lleva la imagen original a una pestaña de VS Code: en Windows `code` es un .cmd y necesita cmd.exe.
-async function abrir($: EngineInterface, ruta: string) {
-  const ordenes = (await sistemaDe($)) === 'windows' ? [['cmd.exe', '/d', '/c', 'code', ruta]] : [['code', ruta], ['/usr/bin/open', '-a', 'Visual Studio Code', ruta]]
-  for (const orden of ordenes) {
-    const hecha = await $.process.run(orden).catch(() => null)
-    if (hecha?.exitCode === 0) {
-      return
-    }
-  }
-  $.ui.toast(`No se pudo abrir ${ruta} en VS Code`)
-}
-
-async function reducir($: EngineInterface, origen: Origen): Promise<Vista | null> {
-  const actual = await sistemaDe($)
-  return actual === 'windows' ? reducirEnWindows($, origen) : actual === 'macos' ? reducirEnMacos($, origen) : null
-}
-
-// Convierte la imagen a JPEG con sips, del lado más grande que quepa en MAXIMO_BASE64, en una carpeta temporal que se borra al acabar.
-async function reducirEnMacos($: EngineInterface, origen: Origen): Promise<Vista | null> {
-  const carpeta = (await $.process.run(['/usr/bin/mktemp', '-d', '-t', 'images-claude-vscode'])).stdout.trim()
-  try {
-    const entrada = 'ruta' in origen ? origen.ruta : `${carpeta}/original`
-    if ('base64' in origen) {
-      const escrita = await $.process.run(['/usr/bin/base64', '-D', '-o', entrada], { stdin: origen.base64 })
-      if (escrita.exitCode !== 0) {
-        return null
-      }
-    }
-    const original = await medidas($, entrada)
-    if (!original) {
-      return null
-    }
-    const salida = `${carpeta}/vista.jpg`
-    for (const lado of LADOS) {
-      const tope = String(Math.min(lado, Math.max(original.ancho, original.alto)))
-      const hecha = await $.process.run(['/usr/bin/sips', '-Z', tope, '-s', 'format', 'jpeg', '-s', 'formatOptions', '70', entrada, '--out', salida])
-      const reducida = hecha.exitCode === 0 ? await medidas($, salida) : null
-      if (!reducida) {
-        return null
-      }
-      const { base64 } = await $.fs.read(salida, { as: 'bytes' })
-      if (base64.length <= MAXIMO_BASE64) {
-        return { base64, ...reducida }
-      }
-    }
-    return null
-  } finally {
-    await $.process.run(['/bin/rm', '-rf', carpeta])
-  }
-}
-
-async function medidas($: EngineInterface, ruta: string) {
-  const { exitCode, stdout } = await $.process.run(['/usr/bin/sips', '-g', 'pixelWidth', '-g', 'pixelHeight', ruta])
-  const ancho = Number(/pixelWidth: (\d+)/.exec(stdout)?.[1])
-  const alto = Number(/pixelHeight: (\d+)/.exec(stdout)?.[1])
-  return exitCode === 0 && ancho > 0 && alto > 0 ? { ancho, alto } : null
-}
-
-// Lo mismo en Windows, en memoria y en una sola llamada a PowerShell con los códecs del sistema (WIC); la transparencia queda sobre blanco.
-async function reducirEnWindows($: EngineInterface, origen: Origen): Promise<Vista | null> {
-  const ruta = 'ruta' in origen ? origen.ruta.replace(/'/g, "''") : ''
-  const script = `
-Add-Type -AssemblyName PresentationCore, WindowsBase
-$ErrorActionPreference = 'Stop'
-$ruta = '${ruta}'
-$bytes = if ($ruta) { [IO.File]::ReadAllBytes($ruta) } else { [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()) }
-$imagen = [Windows.Media.Imaging.BitmapDecoder]::Create([IO.MemoryStream]::new($bytes), 'PreservePixelFormat', 'OnLoad').Frames[0]
-$mayor = [Math]::Max($imagen.PixelWidth, $imagen.PixelHeight)
-foreach ($lado in ${LADOS.join(', ')}) {
-  $escala = [Math]::Min($lado, $mayor) / $mayor
-  $reducida = [Windows.Media.Imaging.TransformedBitmap]::new($imagen, [Windows.Media.ScaleTransform]::new($escala, $escala))
-  $ancho = $reducida.PixelWidth
-  $alto = $reducida.PixelHeight
-  $marco = [Windows.Rect]::new(0, 0, $ancho, $alto)
-  $dibujo = [Windows.Media.DrawingVisual]::new()
-  $lienzo = $dibujo.RenderOpen()
-  $lienzo.DrawRectangle([Windows.Media.Brushes]::White, $null, $marco)
-  $lienzo.DrawImage($reducida, $marco)
-  $lienzo.Close()
-  $plano = [Windows.Media.Imaging.RenderTargetBitmap]::new($ancho, $alto, 96, 96, [Windows.Media.PixelFormats]::Pbgra32)
-  $plano.Render($dibujo)
-  $jpeg = [Windows.Media.Imaging.JpegBitmapEncoder]::new()
-  $jpeg.QualityLevel = 70
-  $jpeg.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($plano))
-  $salida = [IO.MemoryStream]::new()
-  $jpeg.Save($salida)
-  $base64 = [Convert]::ToBase64String($salida.ToArray())
-  if ($base64.Length -le ${MAXIMO_BASE64}) { "$ancho $alto $base64"; exit 0 }
-}
-exit 1
-`
-  const hecha = await $.process
-    .run(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', utf16EnBase64(script)], { stdin: 'base64' in origen ? origen.base64 : '', timeoutMs: 60000 })
-    .catch(() => null)
-  const [ancho, alto, base64] = (hecha?.stdout ?? '').trim().split(' ')
-  return hecha?.exitCode === 0 && Number(ancho) > 0 && Number(alto) > 0 && base64 ? { base64, ancho: Number(ancho), alto: Number(alto) } : null
-}
-
-// -EncodedCommand espera el script en UTF-16LE y base64, sin problemas de comillas.
-function utf16EnBase64(texto: string): string {
-  let binario = ''
-  for (let i = 0; i < texto.length; i++) {
-    const codigo = texto.charCodeAt(i)
-    binario += String.fromCharCode(codigo & 0xff, codigo >> 8)
-  }
-  return btoa(binario)
 }

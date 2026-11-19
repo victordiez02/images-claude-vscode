@@ -32,7 +32,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/victordiez02/images-claude-v
 irm https://raw.githubusercontent.com/victordiez02/images-claude-vscode/main/scripts/instalar.ps1 | iex
 ```
 
-O, en macOS con el repositorio clonado, desde su carpeta:
+O, con el repositorio clonado, desde su carpeta (detecta tu sistema; en Windows hace falta tener `make`):
 
 ```sh
 make instalar

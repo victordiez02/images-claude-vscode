@@ -66,8 +66,9 @@
     return $LASTEXITCODE -eq 0
   }
 
+  # Sin una consola real (una tarea automática), cambiar la codificación o el cursor lanza un error: se intenta y se sigue.
   $codificacionAnterior = [Console]::OutputEncoding
-  [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+  try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
   try {
     Write-Host ''
     Write-Host '  images-claude-vscode' -NoNewline
@@ -89,6 +90,10 @@
       'local' { $eleccion = 0 }
       'global' { $eleccion = 1 }
       { -not $_ } {
+        if ([Console]::IsInputRedirected) {
+          Mostrar-Resultado '✖' Red 'Sin terminal para el menú.' 'Elige con $env:ALCANCE = ''global'' o ''local'' antes del comando.'
+          return
+        }
         Write-Host ''
         Write-Host '  ¿Dónde quieres usarlo?'
         Write-Host ''
@@ -125,7 +130,7 @@
       Mostrar-Resultado '✖' Red 'No se pudo instalar.'
     }
   } finally {
-    [Console]::OutputEncoding = $codificacionAnterior
-    [Console]::CursorVisible = $true
+    try { [Console]::OutputEncoding = $codificacionAnterior } catch {}
+    try { [Console]::CursorVisible = $true } catch {}
   }
 }

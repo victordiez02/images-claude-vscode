@@ -14,7 +14,7 @@ function simularSistema(on: On, plataforma: 'macos' | 'windows' = 'macos') {
     const stdout = e.argv[0] === 'powershell.exe' ? `480 360 ${JPEG}` : e.argv[0] === '/usr/bin/mktemp' ? '/tmp/prueba' : 'pixelWidth: 640\npixelHeight: 480'
     return { value: { exitCode: 0, stdout, stderr: '' } } as never
   })
-  on('fs.read', () => ({ value: { base64: JPEG } }) as never)
+  on('fs.read', (_, e) => ({ value: e.as === 'bytes' ? { base64: JPEG } : '# reducir.ps1' }) as never)
   return ordenes
 }
 
@@ -99,8 +99,10 @@ test('En Windows, Read reduce la imagen de la conversación con PowerShell', asy
   const ui = await $.ui.mount({ plugin: MOD, surface: 'vscode', component: 'ToolUse', requestId: 'leer-windows', props: fila('Read', { file_path: 'C:\\fotos\\captura.png' }) })
   expect(JSON.stringify(await ui.find({ type: 'Svg' }))).toContain(JPEG)
   expect(ordenes.map(o => o.argv[0])).toEqual(['powershell.exe'])
-  expect(ordenes[0]?.argv).toContain('-EncodedCommand')
   expect(ordenes[0]?.stdin).toBe('iVBORw0KGgo')
+  const argv = ordenes[0]?.argv ?? []
+  const script = String.fromCharCode(...Array.from(atob(argv[argv.indexOf('-EncodedCommand') + 1] ?? ''), c => c.charCodeAt(0)).filter((_, i) => i % 2 === 0))
+  expect(script).toBe("$ruta = ''\n$lados = 640, 480, 400, 320\n$maximo = 60000\n# reducir.ps1")
   await ui.unmount()
 })
 
