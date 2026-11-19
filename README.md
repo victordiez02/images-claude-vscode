@@ -34,7 +34,7 @@ Claude no ve lo que pinta el mod: la imagen es solo para ti.
 En una terminal, desde cualquier carpeta:
 
 ```sh
-claude plugin install images-claude-vscode --marketplace victordiez02/claude-vscode-images
+claude plugin install images-claude-vscode --marketplace victordiez02/images-claude-vscode
 ```
 
 Se instala con alcance de usuario (`user`), así que vale para todos tus proyectos. La primera vez añade el marketplace `claude-vscode-images` a tu configuración.
@@ -42,7 +42,7 @@ Se instala con alcance de usuario (`user`), así que vale para todos tus proyect
 Si ya tienes abierta una sesión de Claude Code en la terminal, también puedes escribir en ella:
 
 ```text
-/plugin install images-claude-vscode --marketplace victordiez02/claude-vscode-images
+/plugin install images-claude-vscode --marketplace victordiez02/images-claude-vscode
 ```
 
 Responde `y` para añadir el marketplace y elige el alcance de usuario con Enter.
@@ -83,14 +83,15 @@ Tras actualizar, abre una conversación nueva en VS Code.
 
 ## Desarrollo
 
-El mod está en [plugins/images-claude-vscode/](plugins/images-claude-vscode/); el código, en [hooks/register.tsx](plugins/images-claude-vscode/hooks/register.tsx). Desde la raíz del repositorio:
+El mod está en [plugins/images-claude-vscode/](plugins/images-claude-vscode/): el código, en [hooks/register.tsx](plugins/images-claude-vscode/hooks/register.tsx), y los tests, en [tests/](plugins/images-claude-vscode/tests/). Desde la raíz del repositorio:
 
 ```sh
 claude plugin validate .
+claude plugin test plugins/images-claude-vscode
 claude --plugin-dir plugins/images-claude-vscode
 ```
 
-El primero comprueba el marketplace y el mod; el segundo abre una sesión con el mod cargado desde la carpeta.
+El primero comprueba el marketplace y el mod; el segundo ejecuta los tests; el tercero abre una sesión con el mod cargado desde la carpeta.
 
 ## Licencia
 
