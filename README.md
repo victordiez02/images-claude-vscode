@@ -4,7 +4,6 @@ Mod de Claude Code que pinta imágenes dentro del chat de la extensión de VS Co
 
 - **Cada imagen que Claude lee** (herramienta `Read` de un png, jpg, gif, webp, heic, tiff o bmp) aparece debajo de su fila en el chat, también dentro de los grupos «Read N files».
 - **`ShowImage`**: una herramienta con la que Claude te enseña una imagen del disco. La usa cuando se lo pides; si no se lo has pedido, la enseña directamente cuando es claramente útil (por ejemplo, el resultado visual de lo que acaba de hacer) y, cuando solo cree que puede ayudar, te ofrece enseñarte las imágenes a partir de ese momento.
-- Un botón discreto **⤢** en la esquina de cada imagen la abre a tamaño completo en una pestaña de VS Code.
 
 Claude no ve lo que pinta el mod: la imagen es solo para ti.
 
@@ -54,9 +53,9 @@ Después, abre una conversación nueva en el chat de Claude Code de VS Code (o r
 
 - Pídele a Claude que lea una imagen («mira `captura.png`») y la verás debajo de la fila `Read`.
 - Pídele que te la enseñe («enséñame el gráfico que has generado») y la pintará con `ShowImage`.
-- Pulsa **⤢** en la esquina de la imagen para verla a tamaño completo en una pestaña. Usa el comando `code`; si no lo tienes en el PATH, instálalo desde VS Code con «Shell Command: Install 'code' command in PATH».
+- Pulsa el nombre del archivo en la cabecera para verla a tamaño completo en una pestaña. En `ShowImage` el enlace usa el comando `code`; si no lo tienes en el PATH, instálalo desde VS Code con «Shell Command: Install 'code' command in PATH».
 
-Las imágenes se muestran pequeñas, como mucho a 320×240 px, convertidas a JPEG de hasta 640 px de lado para que se vean nítidas (menos si no caben en el límite de 128 KB de un SVG del chat). Solo se pintan en el chat de VS Code; en la terminal y en otras superficies el mod no hace nada.
+Las imágenes se muestran pequeñas, como mucho a 320×240 px, convertidas a JPEG de hasta 640 px de lado para que se vean nítidas (menos si la versión reducida pasa de 60 KB). Solo se pintan en el chat de VS Code; en la terminal y en otras superficies el mod no hace nada.
 
 ## Dónde se guardan las imágenes
 
@@ -65,7 +64,7 @@ El mod no guarda nada fuera de la conversación:
 - **`Read`**: Claude Code ya guarda en la conversación la imagen que lee; el mod la reduce desde ahí cada vez que pinta la fila.
 - **`ShowImage`**: guarda una versión reducida (menos de 60 KB) en el resultado de la herramienta, en un campo que Claude no lee.
 
-Para reducir usa una carpeta temporal que borra en el momento, y la copia que mantiene en memoria desaparece al cerrar la sesión. Si vuelves a abrir una conversación, las imágenes se pintan de nuevo desde ella, aunque el archivo original ya no exista; cuando Claude Code borra la conversación (por defecto, a los 30 días), se van con ella. El botón **⤢** sí abre el archivo original, así que solo funciona mientras exista.
+Para reducir usa una carpeta temporal que borra en el momento, y la copia que mantiene en memoria desaparece al cerrar la sesión. Si vuelves a abrir una conversación, las imágenes se pintan de nuevo desde ella, aunque el archivo original ya no exista; cuando Claude Code borra la conversación (por defecto, a los 30 días), se van con ella. El enlace de la cabecera sí abre el archivo original, así que solo funciona mientras exista.
 
 ## Actualizar y desinstalar
 

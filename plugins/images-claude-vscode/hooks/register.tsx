@@ -71,15 +71,10 @@ export const register: Register = on => {
     const escala = Math.min(1, ANCHO_VISTA / vista.ancho, ALTO_VISTA / vista.alto)
     const radio = Math.round(RADIO / escala)
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vista.ancho} ${vista.alto}" width="${vista.ancho}" height="${vista.alto}"><clipPath id="r"><rect width="${vista.ancho}" height="${vista.alto}" rx="${radio}"/></clipPath><image width="${vista.ancho}" height="${vista.alto}" clip-path="url(#r)" href="data:image/jpeg;base64,${vista.base64}"/></svg>`
-    const { Box, Svg, Button, Markdown } = $.ui.resolve(e)
+    const { Box, Svg, Markdown } = $.ui.resolve(e)
     const imagen = (
       <Box flexDirection="row" justifyContent="center">
-        <Box key={`vista-${e.requestId}`} position="relative">
-          <Svg source={svg} alt="Imagen" width={Math.round(vista.ancho * escala)} height={Math.round(vista.alto * escala)} />
-          <Box position="absolute" top={0} right={0}>
-            <Button key={`ampliar-${e.requestId}`} label="⤢" variant="secondary" dimColor onPress={() => abrir($, ruta)} />
-          </Box>
-        </Box>
+        <Svg source={svg} alt="Imagen" width={Math.round(vista.ancho * escala)} height={Math.round(vista.alto * escala)} />
       </Box>
     )
     // Read conserva su fila; ShowImage cambia la suya por una cabecera como la de Read, con el archivo como enlace.
