@@ -1,5 +1,5 @@
 #!/bin/bash
-# Instala el mod images-claude-vscode en la carpeta actual o para todos tus proyectos, con un menú en la terminal.
+# Instala el mod images-claude-vscode en la carpeta actual o para todos tus proyectos, con un menú en la terminal (macOS).
 
 MOD=images-claude-vscode
 ID="$MOD@claude-vscode-images"
@@ -106,6 +106,9 @@ instalar() {
 }
 
 printf '\n  %simages-claude-vscode%s %s· instalador%s\n' "$NEGRITA" "$NORMAL" "$TENUE" "$NORMAL"
+
+[ "$(uname)" = Darwin ] || fallo "Este instalador es para macOS." \
+  "En Windows, en PowerShell: irm https://raw.githubusercontent.com/victordiez02/images-claude-vscode/main/scripts/instalar.ps1 | iex"
 
 PROYECTO=$(pwd -P)
 NOMBRE=$(basename "$PROYECTO")

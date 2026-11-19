@@ -5,13 +5,17 @@ const MOD = 'images-claude-vscode'
 const SHOW_IMAGE = 'mcp__images-claude-vscode__ShowImage'
 const JPEG = '/9j/4AAQSkZJRg'
 
-// Simula mktemp, base64, sips y la lectura del JPEG reducido, que en el test no existen.
-function simularSistema(on: On) {
+// Simula el sistema operativo y sus herramientas (mktemp, base64 y sips en macOS; PowerShell en Windows), que en el test no existen.
+function simularSistema(on: On, plataforma: 'macos' | 'windows' = 'macos') {
+  const ordenes: { argv: readonly string[]; stdin?: string }[] = []
+  on('session.info', () => ({ value: { platform: plataforma } }) as never)
   on('process.run', (_, e) => {
-    const stdout = e.argv[0] === '/usr/bin/mktemp' ? '/tmp/prueba' : 'pixelWidth: 640\npixelHeight: 480'
+    ordenes.push({ argv: e.argv, stdin: e.init?.stdin })
+    const stdout = e.argv[0] === 'powershell.exe' ? `480 360 ${JPEG}` : e.argv[0] === '/usr/bin/mktemp' ? '/tmp/prueba' : 'pixelWidth: 640\npixelHeight: 480'
     return { value: { exitCode: 0, stdout, stderr: '' } } as never
   })
   on('fs.read', () => ({ value: { base64: JPEG } }) as never)
+  return ordenes
 }
 
 // Una conversación con un Read de imagen (en el tool_result) y una ShowImage (en el _meta de su registro).
@@ -19,6 +23,7 @@ function simularConversacion(on: On) {
   on('session.messages', (_, e) => {
     const api = [
       { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'leer', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo' } }] }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'leer-windows', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo' } }] }] },
     ]
     const registros = [
       {
@@ -30,6 +35,12 @@ function simularConversacion(on: On) {
             tool_use_id: 'mostrar',
             tool: SHOW_IMAGE,
             input: { path: '/fotos/grafico.png' },
+            result: [{ type: 'text', text: 'Imagen enseñada', _meta: { vista: { base64: JPEG, ancho: 480, alto: 360 } } }],
+          },
+          {
+            tool_use_id: 'mostrar-windows',
+            tool: SHOW_IMAGE,
+            input: { path: 'C:\\fotos\\gráfico (1).png' },
             result: [{ type: 'text', text: 'Imagen enseñada', _meta: { vista: { base64: JPEG, ancho: 480, alto: 360 } } }],
           },
         ],
@@ -79,5 +90,24 @@ test('Fuera de VS Code no pinta nada', async ($, on) => {
   simularConversacion(on)
   const ui = await $.ui.mount({ plugin: MOD, surface: 'desktop', component: 'ToolUse', requestId: 'mostrar', props: fila(SHOW_IMAGE, { path: '/fotos/grafico.png' }) })
   expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('En Windows, Read reduce la imagen de la conversación con PowerShell', async ($, on) => {
+  const ordenes = simularSistema(on, 'windows')
+  simularConversacion(on)
+  const ui = await $.ui.mount({ plugin: MOD, surface: 'vscode', component: 'ToolUse', requestId: 'leer-windows', props: fila('Read', { file_path: 'C:\\fotos\\captura.png' }) })
+  expect(JSON.stringify(await ui.find({ type: 'Svg' }))).toContain(JPEG)
+  expect(ordenes.map(o => o.argv[0])).toEqual(['powershell.exe'])
+  expect(ordenes[0]?.argv).toContain('-EncodedCommand')
+  expect(ordenes[0]?.stdin).toBe('iVBORw0KGgo')
+  await ui.unmount()
+})
+
+test('En Windows, ShowImage enlaza la ruta como file:///C:/…', async ($, on) => {
+  simularSistema(on, 'windows')
+  simularConversacion(on)
+  const ui = await $.ui.mount({ plugin: MOD, surface: 'vscode', component: 'ToolUse', requestId: 'mostrar-windows', props: fila(SHOW_IMAGE, { path: 'C:\\fotos\\gráfico (1).png' }) })
+  expect(JSON.stringify(await ui.find({ type: 'Markdown' }))).toContain('[gráfico \\\\(1\\\\).png](file:///C:/fotos/gr%C3%A1fico%20%281%29.png)')
   await ui.unmount()
 })

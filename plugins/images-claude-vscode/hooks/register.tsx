@@ -19,6 +19,7 @@ Formatos: png, jpg, gif, webp, heic, tiff y bmp.`
 type Vista = { base64: string; ancho: number; alto: number }
 // Lo que la conversación guarda de cada llamada: la imagen que leyó Read o la vista que guardó ShowImage.
 type Fuente = { imagen: string } | { vista: Vista }
+type Origen = { ruta: string } | { base64: string }
 
 let lectura: Promise<Map<string, Fuente>> | undefined
 const vistas = new Map<string, Promise<Vista | null>>()
@@ -43,6 +44,9 @@ export const register: Register = on => {
     const ruta = campo(e, 'path')
     if (!ES_IMAGEN.test(ruta)) {
       return { deny: `${ruta || 'Sin ruta'}: no es una imagen que se pueda enseñar (png, jpg, gif, webp, heic, tiff o bmp).` }
+    }
+    if (!['macos', 'windows'].includes(await sistemaDe($))) {
+      return { deny: 'ShowImage solo funciona en macOS y Windows.' }
     }
     const vista = await reducir($, { ruta })
     return vista
@@ -92,17 +96,23 @@ export const register: Register = on => {
   })
 }
 
+async function sistemaDe($: EngineInterface): Promise<string> {
+  return (await $.session.info()).platform ?? 'unknown'
+}
+
 function nombreDe(ruta: string): string {
-  return ruta.split('/').pop() || ruta
+  return ruta.split(/[\\/]/).pop() || ruta
 }
 
 function escaparMarkdown(texto: string): string {
   return texto.replace(/[\\[\]()*_`]/g, '\\$&')
 }
 
+// Enlace file:// de la ruta, con barras normales también en Windows (file:///C:/…).
 async function enlaceDe($: EngineInterface, ruta: string): Promise<string> {
-  const absoluta = ruta.startsWith('/') ? ruta : `${await $.session.cwd()}/${ruta}`
-  return `file://${encodeURI(absoluta).replace(/[()]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`
+  const absoluta = /^([a-zA-Z]:)?[\\/]/.test(ruta) ? ruta : `${await $.session.cwd()}/${ruta}`
+  const conBarras = absoluta.replace(/\\/g, '/')
+  return `file://${conBarras.startsWith('/') ? '' : '/'}${encodeURI(conBarras).replace(/[()]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`
 }
 
 // Prepara una vez por llamada la vista a partir de lo que guarda la conversación.
@@ -159,20 +169,25 @@ function campo(entrada: unknown, nombre: string): string {
   return typeof valor === 'string' ? valor : ''
 }
 
-// Lleva la imagen original a una pestaña de VS Code.
+// Lleva la imagen original a una pestaña de VS Code: en Windows `code` es un .cmd y necesita cmd.exe.
 async function abrir($: EngineInterface, ruta: string) {
-  const conCode = await $.process.run(['code', ruta]).catch(() => null)
-  if (conCode?.exitCode === 0) {
-    return
+  const ordenes = (await sistemaDe($)) === 'windows' ? [['cmd.exe', '/d', '/c', 'code', ruta]] : [['code', ruta], ['/usr/bin/open', '-a', 'Visual Studio Code', ruta]]
+  for (const orden of ordenes) {
+    const hecha = await $.process.run(orden).catch(() => null)
+    if (hecha?.exitCode === 0) {
+      return
+    }
   }
-  const conOpen = await $.process.run(['/usr/bin/open', '-a', 'Visual Studio Code', ruta]).catch(() => null)
-  if (conOpen?.exitCode !== 0) {
-    $.ui.toast(`No se pudo abrir ${ruta} en VS Code`)
-  }
+  $.ui.toast(`No se pudo abrir ${ruta} en VS Code`)
+}
+
+async function reducir($: EngineInterface, origen: Origen): Promise<Vista | null> {
+  const actual = await sistemaDe($)
+  return actual === 'windows' ? reducirEnWindows($, origen) : actual === 'macos' ? reducirEnMacos($, origen) : null
 }
 
 // Convierte la imagen a JPEG con sips, del lado más grande que quepa en MAXIMO_BASE64, en una carpeta temporal que se borra al acabar.
-async function reducir($: EngineInterface, origen: { ruta: string } | { base64: string }): Promise<Vista | null> {
+async function reducirEnMacos($: EngineInterface, origen: Origen): Promise<Vista | null> {
   const carpeta = (await $.process.run(['/usr/bin/mktemp', '-d', '-t', 'images-claude-vscode'])).stdout.trim()
   try {
     const entrada = 'ruta' in origen ? origen.ruta : `${carpeta}/original`
@@ -210,4 +225,54 @@ async function medidas($: EngineInterface, ruta: string) {
   const ancho = Number(/pixelWidth: (\d+)/.exec(stdout)?.[1])
   const alto = Number(/pixelHeight: (\d+)/.exec(stdout)?.[1])
   return exitCode === 0 && ancho > 0 && alto > 0 ? { ancho, alto } : null
+}
+
+// Lo mismo en Windows, en memoria y en una sola llamada a PowerShell con los códecs del sistema (WIC); la transparencia queda sobre blanco.
+async function reducirEnWindows($: EngineInterface, origen: Origen): Promise<Vista | null> {
+  const ruta = 'ruta' in origen ? origen.ruta.replace(/'/g, "''") : ''
+  const script = `
+Add-Type -AssemblyName PresentationCore, WindowsBase
+$ErrorActionPreference = 'Stop'
+$ruta = '${ruta}'
+$bytes = if ($ruta) { [IO.File]::ReadAllBytes($ruta) } else { [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()) }
+$imagen = [Windows.Media.Imaging.BitmapDecoder]::Create([IO.MemoryStream]::new($bytes), 'PreservePixelFormat', 'OnLoad').Frames[0]
+$mayor = [Math]::Max($imagen.PixelWidth, $imagen.PixelHeight)
+foreach ($lado in ${LADOS.join(', ')}) {
+  $escala = [Math]::Min($lado, $mayor) / $mayor
+  $reducida = [Windows.Media.Imaging.TransformedBitmap]::new($imagen, [Windows.Media.ScaleTransform]::new($escala, $escala))
+  $ancho = $reducida.PixelWidth
+  $alto = $reducida.PixelHeight
+  $marco = [Windows.Rect]::new(0, 0, $ancho, $alto)
+  $dibujo = [Windows.Media.DrawingVisual]::new()
+  $lienzo = $dibujo.RenderOpen()
+  $lienzo.DrawRectangle([Windows.Media.Brushes]::White, $null, $marco)
+  $lienzo.DrawImage($reducida, $marco)
+  $lienzo.Close()
+  $plano = [Windows.Media.Imaging.RenderTargetBitmap]::new($ancho, $alto, 96, 96, [Windows.Media.PixelFormats]::Pbgra32)
+  $plano.Render($dibujo)
+  $jpeg = [Windows.Media.Imaging.JpegBitmapEncoder]::new()
+  $jpeg.QualityLevel = 70
+  $jpeg.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($plano))
+  $salida = [IO.MemoryStream]::new()
+  $jpeg.Save($salida)
+  $base64 = [Convert]::ToBase64String($salida.ToArray())
+  if ($base64.Length -le ${MAXIMO_BASE64}) { "$ancho $alto $base64"; exit 0 }
+}
+exit 1
+`
+  const hecha = await $.process
+    .run(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', utf16EnBase64(script)], { stdin: 'base64' in origen ? origen.base64 : '', timeoutMs: 60000 })
+    .catch(() => null)
+  const [ancho, alto, base64] = (hecha?.stdout ?? '').trim().split(' ')
+  return hecha?.exitCode === 0 && Number(ancho) > 0 && Number(alto) > 0 && base64 ? { base64, ancho: Number(ancho), alto: Number(alto) } : null
+}
+
+// -EncodedCommand espera el script en UTF-16LE y base64, sin problemas de comillas.
+function utf16EnBase64(texto: string): string {
+  let binario = ''
+  for (let i = 0; i < texto.length; i++) {
+    const codigo = texto.charCodeAt(i)
+    binario += String.fromCharCode(codigo & 0xff, codigo >> 8)
+  }
+  return btoa(binario)
 }
