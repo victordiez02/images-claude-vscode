@@ -13,23 +13,23 @@ Mod de Claude Code que muestra imágenes dentro del chat de la extensión de VS 
 
 ## Requisitos
 
-- macOS o Windows.
+- Windows o macOS.
 - Claude Code 2.1.327 o posterior (`claude --version`; si es anterior, `claude update`).
 
 ## Instalación
 
 Desde la carpeta de tu proyecto, sin clonar el repositorio:
 
-**macOS** (Terminal):
-
-```sh
-bash <(curl -fsSL https://raw.githubusercontent.com/victordiez02/images-claude-vscode/main/scripts/instalar.sh)
-```
-
-**Windows** (PowerShell):
+<picture><img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" alt="" width="13" height="13"></picture>&nbsp; **Windows** (PowerShell):
 
 ```powershell
 irm https://raw.githubusercontent.com/victordiez02/images-claude-vscode/main/scripts/instalar.ps1 | iex
+```
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/apple/ffffff"><img src="https://cdn.simpleicons.org/apple/000000" alt="" width="13" height="13"></picture>&nbsp; **macOS** (Terminal):
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/victordiez02/images-claude-vscode/main/scripts/instalar.sh)
 ```
 
 O, con el repositorio clonado, desde su carpeta (detecta tu sistema; en Windows hace falta tener `make`):
